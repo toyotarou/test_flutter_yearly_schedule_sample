@@ -16,21 +16,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// 画面にはボタンひとつ。押すと「年タイムライン」ダイアログが開く。
+/// 5つのボタンで、指定年へ自動スクロールしてダイアログを開く
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Year Timeline Dialog')),
-      body: Center(
-        child: ElevatedButton(onPressed: () => _openYearTimelineDialog(context), child: const Text('年タイムラインを開く')),
-      ),
-    );
-  }
+  static const int kStartYear = 2020;
+  static const int kYears = 10; // 2020〜2029
 
-  void _openYearTimelineDialog(BuildContext context) {
+  void _openYearTimelineDialog(BuildContext context, int initialScrollYear) {
     final Size screen = MediaQuery.of(context).size;
     final double dialogW = screen.width * 0.95;
     final double dialogH = screen.height * 0.9; // ダイアログは画面高の9割
@@ -45,21 +38,55 @@ class HomePage extends StatelessWidget {
           child: SizedBox(
             width: dialogW,
             height: dialogH,
-            // ★ 2020〜2029 の 10年固定。ダイアログ内で今年へ自動スクロール
-            child: const YearTimelineDialogBody(startYear: 2020, years: 10),
+            child: YearTimelineDialogBody(
+              startYear: kStartYear,
+              years: kYears,
+              initialScrollYear: initialScrollYear, // ★ここで指定
+            ),
           ),
         );
       },
     );
   }
+
+  Widget _btn(BuildContext context, String label, int year) {
+    return ElevatedButton(onPressed: () => _openYearTimelineDialog(context, year), child: Text(label));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // ボタン5つ
+    return Scaffold(
+      appBar: AppBar(title: const Text('Year Timeline Dialog (Multi Jump)')),
+      body: Center(
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: <Widget>[
+            _btn(context, '2021へ', 2021),
+            _btn(context, '2024へ', 2024),
+            _btn(context, '2025へ', 2025),
+            _btn(context, '2026へ', 2026),
+            _btn(context, '2029へ', 2029),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-/// ===== ダイアログ中身（AutoScroll：確実に今年へスクロール） =====
+/// ===== ダイアログ中身（AutoScroll：指定年を先頭に揃える） =====
 class YearTimelineDialogBody extends StatefulWidget {
-  const YearTimelineDialogBody({super.key, required this.startYear, required this.years});
+  const YearTimelineDialogBody({
+    super.key,
+    required this.startYear,
+    required this.years,
+    required this.initialScrollYear,
+  });
 
-  final int startYear;
-  final int years;
+  final int startYear; // 例: 2020
+  final int years; // 例: 10（2020〜2029）
+  final int initialScrollYear; // ボタンで渡された年
 
   @override
   State<YearTimelineDialogBody> createState() => _YearTimelineDialogBodyState();
@@ -67,22 +94,18 @@ class YearTimelineDialogBody extends StatefulWidget {
 
 class _YearTimelineDialogBodyState extends State<YearTimelineDialogBody> {
   late final AutoScrollController _autoCtrl;
-  late final int _currentYear;
 
   @override
   void initState() {
     super.initState();
-    _currentYear = DateTime.now().year;
-
-    // AutoScrollController（縦方向）
     _autoCtrl = AutoScrollController(axis: Axis.vertical);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // ignore: inference_failure_on_instance_creation, always_specify_types
       await Future.delayed(const Duration(milliseconds: 30));
-      final int? targetIndex = _yearToIndex(_currentYear);
+      final int? targetIndex = _yearToIndex(widget.initialScrollYear);
       if (targetIndex != null) {
-        // ★ ここを middle → begin に変更
+        // 先頭（上揃え）にスクロール
         await _autoCtrl.scrollToIndex(
           targetIndex,
           preferPosition: AutoScrollPosition.begin,
